@@ -60,6 +60,11 @@ NODE_BIN=$(command -v node || true)
 if [ -z "$NODE_BIN" ]; then
   echo "Node not found; installing node is recommended for running backend." >&2
 else
+  if ! id -u regex >/dev/null 2>&1; then
+    sudo useradd -r -s /usr/sbin/nologin regex
+  fi
+  sudo chown -R regex:regex "$REPO_ROOT/server" "$REPO_ROOT/data"
+
   SERVICE_PATH=/etc/systemd/system/regex-study-backend.service
   sudo tee "$SERVICE_PATH" > /dev/null <<EOF
 [Unit]
@@ -70,7 +75,7 @@ After=network.target
 WorkingDirectory=$REPO_ROOT/server
 ExecStart=$NODE_BIN $REPO_ROOT/server/index.js
 Restart=on-failure
-User=root
+User=regex
 Environment=NODE_ENV=production
 RestartSec=5
 
