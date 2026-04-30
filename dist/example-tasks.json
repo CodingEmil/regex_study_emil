@@ -8,14 +8,16 @@
     {
       "id": "task-1",
       "title": "Einfache Zeichensuche",
-      "description": "Der einfachste Regex ist ein normaler Text. Ein Regex wie `cat` findet das Wort „cat" in einem String.\n\nDeine Aufgabe: Schreibe einen Regex, der das Wort **„hallo"** findet.",
+      "description": "Der einfachste Regex ist ein normaler Text. Ein Regex wie `cat` findet das Wort \u201ecat\u201c in einem String.\n\nDeine Aufgabe: Schreibe einen Regex, der das Wort **\u201ehallo\u201c** findet.",
       "testCases": [
         { "text": "hallo Welt", "shouldMatch": true, "description": "enthält 'hallo'" },
         { "text": "Sag hallo zu mir", "shouldMatch": true, "description": "enthält 'hallo'" },
         { "text": "hallo123", "shouldMatch": true, "description": "enthält 'hallo'" },
-        { "text": "tschüss", "shouldMatch": false, "description": "enthält 'hallo' nicht" },
+        { "text": "tschüss", "shouldMatch": false, "description": "kein 'hallo'" },
         { "text": "Hallo", "shouldMatch": false, "description": "Groß-/Kleinschreibung beachten" },
-        { "text": "halloooo", "shouldMatch": true, "description": "enthält 'hallo'" }
+        { "text": "halloooo", "shouldMatch": true, "description": "enthält 'hallo'" },
+        { "text": "hall", "shouldMatch": false, "description": "nur 4 von 5 Buchstaben — das 'o' fehlt" },
+        { "text": "halluzination", "shouldMatch": false, "description": "enthält 'hall' aber nicht 'hallo'" }
       ],
       "hints": [
         "Tippe das Wort einfach so ein, wie es ist.",
@@ -23,13 +25,13 @@
         "Die Lösung ist einfach: hallo"
       ],
       "solution": "hallo",
-      "explanation": "Ein einfacher Text ohne Sonderzeichen ist der simpelste mögliche reguläre Ausdruck. `hallo` findet alle Vorkommen der Zeichenkette „hallo" im Text – aber nicht „Hallo" (Großbuchstaben).",
+      "explanation": "Ein einfacher Text ohne Sonderzeichen ist der simpelste mögliche reguläre Ausdruck. `hallo` findet alle Vorkommen der Zeichenkette \u201ehallo\u201c im Text – aber nicht \u201eHallo\u201c (Großbuchstaben).",
       "flags": ""
     },
     {
       "id": "task-2",
       "title": "Zeichenklassen [abc]",
-      "description": "Mit eckigen Klammern `[...]` definierst du eine **Zeichenklasse** – der Regex matcht genau eines der angegebenen Zeichen.\n\nBeispiel: `[aeiou]` matcht jeden Vokal.\n\nSchreibe einen Regex, der sowohl **„grau"** als auch **„grün"** matcht – aber nicht andere Wörter.",
+      "description": "Mit eckigen Klammern `[...]` definierst du eine **Zeichenklasse** – der Regex matcht genau eines der angegebenen Zeichen.\n\nBeispiel: `[aeiou]` matcht jeden Vokal.\n\nSchreibe einen Regex, der sowohl **\u201egrau\u201c** als auch **\u201egrün\u201c** matcht – aber nicht andere Wörter.",
       "testCases": [
         { "text": "Das Wetter ist grau", "shouldMatch": true },
         { "text": "grün ist meine Lieblingsfarbe", "shouldMatch": true },
@@ -37,7 +39,8 @@
         { "text": "Das Gras ist grün", "shouldMatch": true },
         { "text": "blau ist auch schön", "shouldMatch": false },
         { "text": "rot passt nicht", "shouldMatch": false },
-        { "text": "grob daneben", "shouldMatch": false }
+        { "text": "grob daneben", "shouldMatch": false },
+        { "text": "grüßen aus Berlin", "shouldMatch": false, "description": "grü allein reicht nicht" }
       ],
       "hints": [
         "Beide Wörter beginnen mit 'gr' und enden auf 'n' oder 'u' – aber nicht ganz.",
@@ -97,7 +100,7 @@
     {
       "id": "task-5",
       "title": "Gruppen und Alternativen",
-      "description": "Mit `(a|b)` kannst du **Alternativen** gruppieren – der Regex matcht entweder `a` oder `b`.\n\nKlammern `()` bilden auch **Gruppen**, die du mit `+`, `*` etc. versehen kannst.\n\nSchreibe einen Regex, der sowohl **„Farbe"** als auch **„Farben"** matcht, aber auch **„color"** und **„colors"**.",
+      "description": "Mit `(a|b)` kannst du **Alternativen** gruppieren – der Regex matcht entweder `a` oder `b`.\n\nKlammern `()` bilden auch **Gruppen**, die du mit `+`, `*` etc. versehen kannst.\n\nSchreibe einen Regex, der sowohl **\u201eFarbe\u201c** als auch **\u201eFarben\u201c** matcht, aber auch **\u201ecolor\u201c** und **\u201ecolors\u201c**.",
       "testCases": [
         { "text": "Die Farbe ist schön", "shouldMatch": true },
         { "text": "Alle Farben des Regenbogens", "shouldMatch": true },
@@ -105,7 +108,8 @@
         { "text": "I love all colors", "shouldMatch": true },
         { "text": "Das Bild hat Kontrast", "shouldMatch": false },
         { "text": "Der Ton macht die Musik", "shouldMatch": false },
-        { "text": "Farben und colors", "shouldMatch": true }
+        { "text": "Farben und colors", "shouldMatch": true },
+        { "text": "Farbenlehre", "shouldMatch": true, "description": "enthält 'Farben'" }
       ],
       "hints": [
         "Du brauchst Alternativen mit |: (Farbe|color)",
@@ -128,7 +132,9 @@
         { "text": "NurText", "shouldMatch": false, "description": "keine Zahl dahinter" },
         { "text": "hello world", "shouldMatch": false },
         { "text": "Test123", "shouldMatch": true },
-        { "text": "Regex", "shouldMatch": false }
+        { "text": "Regex", "shouldMatch": false },
+        { "text": "5Apfel", "shouldMatch": false, "description": "Ziffer am Anfang, kein Wort davor" },
+        { "text": "42 Zeilen", "shouldMatch": false, "description": "nur Zahl, kein Wort davor" }
       ],
       "hints": [
         "Worte bestehen aus Buchstaben: [A-Za-zÄÖÜäöüß]+",

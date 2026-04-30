@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Course } from '../types'
 import ProgressBar from './ProgressBar'
@@ -35,8 +35,6 @@ export default function TaskRunner({ course, currentTaskIndex, onNextTask, onLoa
   const [userFlags, setUserFlags] = useState(task.flags ?? '')
   const [taskStartTime, setTaskStartTime] = useState(Date.now())
   const [showExplanation, setShowExplanation] = useState(false)
-  const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null)
-  const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Reset state when task changes
   useEffect(() => {
@@ -44,8 +42,6 @@ export default function TaskRunner({ course, currentTaskIndex, onNextTask, onLoa
     setUserFlags(task.flags ?? '')
     setTaskStartTime(Date.now())
     setShowExplanation(false)
-    setAutoAdvanceCountdown(null)
-    if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current)
   }, [task, currentTaskIndex])
 
   const handleRegexChange = useCallback((pattern: string, flags: string) => {
@@ -70,45 +66,12 @@ export default function TaskRunner({ course, currentTaskIndex, onNextTask, onLoa
     ? task.testCases.reduce((sum, tc) => sum + countMatches(tc.text, regex), 0)
     : 0
 
-  // Auto-advance on all tests passing
+  // Reveal explanation when all tests pass
   useEffect(() => {
-    if (!allPassing) {
-      setAutoAdvanceCountdown(null)
-      if (autoAdvanceRef.current) {
-        clearTimeout(autoAdvanceRef.current)
-        autoAdvanceRef.current = null
-      }
-      return
-    }
-
-    // Show explanation and start countdown
-    setShowExplanation(true)
-    setAutoAdvanceCountdown(3)
-
-    let count = 3
-    const tick = setInterval(() => {
-      count -= 1
-      setAutoAdvanceCountdown(count)
-      if (count <= 0) {
-        clearInterval(tick)
-      }
-    }, 1000)
-
-    autoAdvanceRef.current = setTimeout(() => {
-      clearInterval(tick)
-      onNextTask()
-    }, 3000)
-
-    return () => {
-      clearInterval(tick)
-      if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (allPassing) setShowExplanation(true)
   }, [allPassing])
 
   const handleSkip = () => {
-    if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current)
-    setAutoAdvanceCountdown(null)
     onNextTask()
   }
 
@@ -164,13 +127,11 @@ export default function TaskRunner({ course, currentTaskIndex, onNextTask, onLoa
           isRegexValid={isValid}
         />
 
-        {/* Auto-advance banner */}
-        {allPassing && autoAdvanceCountdown !== null && (
+        {/* Success banner */}
+        {allPassing && (
           <div className="bg-emerald-900/40 border border-emerald-700 rounded-xl p-4 flex items-center justify-between">
-            <div>
-              <div className="text-emerald-300 font-semibold">
-                {isLastTask ? '🎉 Kurs abgeschlossen!' : '✓ Richtig! Weiter in ' + autoAdvanceCountdown + 's...'}
-              </div>
+            <div className="text-emerald-300 font-semibold">
+              {isLastTask ? '🎉 Kurs abgeschlossen!' : '✓ Richtig!'}
             </div>
             <button
               onClick={handleSkip}

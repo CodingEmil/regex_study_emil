@@ -5,10 +5,82 @@ interface Props {
   onCourseLoaded: (course: Course) => void
 }
 
-const LLM_PROMPT = `Erstelle einen Regex-Kurs im folgenden JSON-Format. Der Kurs soll Lernenden helfen, reguläre Ausdrücke zu verstehen.
+interface ValidationIssue {
+  taskId: string | number
+  taskTitle: string
+  message: string
+}
 
-JSON-Format:
-\`\`\`json
+const TRIVIAL_PATTERNS = [
+  '\\d', '\\d+', '\\d*', '\\w', '\\w+', '\\w*',
+  '.', '.+', '.*', '\\s', '\\s+',
+  '[a-z]', '[A-Z]', '[a-zA-Z]', '[a-zA-Z]+',
+  '[a-zA-Z0-9]', '[a-zA-Z0-9]+', '[a-zA-Z0-9_]', '[a-zA-Z0-9_]+',
+]
+
+function passesAllTests(pattern: string, flags: string, testCases: { text: string; shouldMatch: boolean }[]): boolean {
+  try {
+    const r = new RegExp(pattern, flags.replace('g', ''))
+    return testCases.every((tc) => r.test(tc.text) === tc.shouldMatch)
+  } catch {
+    return false
+  }
+}
+
+function validateCourse(course: Course): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+  for (const task of course.tasks) {
+    if (!task.solution) {
+      issues.push({ taskId: task.id, taskTitle: task.title, message: 'Kein solution-Feld vorhanden.' })
+      continue
+    }
+    const flags = (task.flags ?? '').replace(/[^gimsuy]/g, '')
+    let regex: RegExp
+    try {
+      regex = new RegExp(task.solution, flags)
+    } catch {
+      issues.push({ taskId: task.id, taskTitle: task.title, message: `Ungültiger Regex: /${task.solution}/` })
+      continue
+    }
+
+    // Check 1: solution must pass all test cases
+    let solutionFailed = false
+    for (const tc of task.testCases) {
+      const r = new RegExp(regex.source, regex.flags.replace('g', ''))
+      const matched = r.test(tc.text)
+      if (matched !== tc.shouldMatch) {
+        const expected = tc.shouldMatch ? 'matchen' : 'nicht matchen'
+        const got = matched ? 'matcht' : 'matcht nicht'
+        issues.push({
+          taskId: task.id,
+          taskTitle: task.title,
+          message: `solution /${task.solution}/ ${got} "${tc.text}", soll aber ${expected}.`,
+        })
+        solutionFailed = true
+      }
+    }
+    if (solutionFailed) continue
+
+    // Check 2: no trivial pattern should pass all tests (unless it IS the solution)
+    const trivialThatPasses = TRIVIAL_PATTERNS.filter(
+      (p) => p !== task.solution && passesAllTests(p, flags, task.testCases),
+    )
+    if (trivialThatPasses.length > 0) {
+      issues.push({
+        taskId: task.id,
+        taskTitle: task.title,
+        message: `Triviale Regex bestehen alle Tests: ${trivialThatPasses.map((p) => `/${p}/`).join(', ')} — Testfälle zu schwach.`,
+      })
+    }
+  }
+  return issues
+}
+
+const LLM_PROMPT = `Du erstellst einen Regex-Lernkurs als JSON. Befolge alle Regeln exakt.
+
+═══════════════════════════════
+JSON-FORMAT (exakt so einhalten)
+═══════════════════════════════
 {
   "course": {
     "title": "Kursname",
@@ -19,35 +91,105 @@ JSON-Format:
     {
       "id": "task-1",
       "title": "Aufgabentitel",
-      "description": "Aufgabenbeschreibung mit **Markdown** support. Erkläre, was die Aufgabe erfordert.",
+      "description": "Aufgabenbeschreibung. Erkläre das Regex-Konzept und was die Aufgabe verlangt. Markdown erlaubt.",
       "testCases": [
-        { "text": "Testtext der matchen soll", "shouldMatch": true },
-        { "text": "Testtext der NICHT matchen soll", "shouldMatch": false }
+        { "text": "Text der matchen soll",       "shouldMatch": true  },
+        { "text": "Text der NICHT matchen soll",  "shouldMatch": false }
       ],
       "hints": [
-        "Erster Hinweis (allgemein)",
-        "Zweiter Hinweis (konkreter)",
-        "Dritter Hinweis (sehr konkret)"
+        "Allgemeiner Hinweis",
+        "Konkreterer Hinweis",
+        "Fast die Lösung"
       ],
-      "solution": "regulaerer_ausdruck_hier",
-      "explanation": "Erklärung warum diese Lösung funktioniert",
-      "flags": "gi"
+      "solution": "nur_der_regex_ohne_slashes",
+      "explanation": "Warum diese Lösung funktioniert",
+      "flags": ""
     }
   ]
 }
-\`\`\`
 
-Wichtige Regeln:
-- Jede Aufgabe braucht mindestens 4 Testfälle (2x shouldMatch:true, 2x shouldMatch:false)
-- hints Array: 2-4 Hinweise, vom allgemeinen zum konkreten
-- solution: nur der Regex-Ausdruck, ohne Schrägstriche
-- flags: optional, z.B. "gi" für global+case-insensitive
-- description: darf Markdown verwenden (**fett**, \`code\`, etc.)
-- ids müssen eindeutig sein
+═══════════════════════════════════
+PFLICHTREGELN – KEINE AUSNAHMEN
+═══════════════════════════════════
+1. SOLUTION MUSS KORREKT SEIN
+   Bevor du eine Aufgabe schreibst, prüfe mental jeden Testfall:
+   - Für jeden shouldMatch:true  → new RegExp(solution).test(text) muss true  ergeben
+   - Für jeden shouldMatch:false → new RegExp(solution).test(text) muss false ergeben
+   Wenn auch nur EIN Testfall falsch ist, korrigiere solution ODER testCases.
 
+2. TESTFÄLLE: MINDESTENS 8 PRO AUFGABE
+   - Mindestens 3x shouldMatch:true
+   - Mindestens 4x shouldMatch:false
+   - Davon mindestens 2x bewusst gewählte "Fallen" (siehe Regel 3)
+
+3. ★ ANTI-TRIVIAL-PFLICHT (WICHTIGSTE REGEL) ★
+   Deine Testfälle MÜSSEN folgende triviale Falsch-Antworten ausschließen:
+     /\\d/  /\\d+/  /\\w/  /\\w+/  /./  /.+/  /.*/  /[a-z]/  /[a-zA-Z]+/  /[a-zA-Z0-9]+/
+
+   Wenn auch nur EINE dieser trivialen Regex alle deine Tests besteht,
+   ist deine Aufgabe WERTLOS und muss überarbeitet werden.
+
+   Konkrete Anti-Trivial-Strategien:
+   a) Mindestens ein shouldMatch:true OHNE Ziffern → /\\d/ scheitert
+   b) Mindestens ein shouldMatch:true mit NUR Ziffern (falls erlaubt)
+      ODER ein shouldMatch:false das NUR Buchstaben enthält → /\\w+/ scheitert
+   c) Mindestens ein shouldMatch:false mit GENAU EINEM Zeichen → /./ scheitert
+   d) Bei Längen-Validierung: Grenzfall-Tests (genau Min, Min-1, genau Max, Max+1)
+   e) Bei Anker-basierten Lösungen (^...$): Mindestens ein shouldMatch:false
+      das das Pattern nur als TEILSTRING enthält
+      Beispiel: solution=^\\w{3,16}$, dann muss "user@name" ein false-Fall sein
+      (denn "user" ist ein gültiger Substring, aber das Gesamtwort nicht).
+
+4. VARIATIONS-PFLICHT
+   Jeder shouldMatch:true muss eine ANDERE Variante der gültigen Form testen.
+   Beispiel Username (3-16 Wortzeichen):
+     "Max"               (Mindestlänge, nur Buchstaben — verhindert /\\d/)
+     "user_name"         (mit Underscore)
+     "ABCDEFGHIJKLMNOP"  (Maximallänge)
+     "abc123"            (Buchstaben+Ziffern Mix)
+
+5. ABKÜRZUNGS-FALLEN
+   Wenn solution den Substring "abc" matcht, füge "ab" als shouldMatch:false ein.
+   Wenn solution \\w{3,16} ist, füge "ab" (zu kurz) als shouldMatch:false ein.
+
+6. NUR JAVASCRIPT-KOMPATIBLER REGEX
+   Verboten: variable-length lookbehind (?<=a+), atomic groups, \\p{...} ohne u-Flag
+   Erlaubt: (?=...) (?!...) (?<=...) mit fixer Länge, alle Standard-Quantoren
+
+7. KEIN g-FLAG
+   Lass flags leer ("") oder nutze nur i, m, s — niemals g (bricht .test()).
+
+8. JSON-ESCAPING
+   Backslashes verdoppeln: \\\\d \\\\w \\\\s \\\\b \\\\. usw.
+   Anführungszeichen innerhalb von Strings: nutze \\\\" oder andere Zeichen.
+
+9. IDS EINDEUTIG: task-1, task-2, task-3 ...
+
+═══════════════════════════════════
+QUALITÄTS-CHECKLISTE (PFLICHT VOR AUSGABE)
+═══════════════════════════════════
+Gehe jede Aufgabe explizit durch und beantworte:
+
+[ ] Besteht solution ALLE testCases korrekt?
+[ ] Scheitert /\\d/ an meinen Tests? (Falls solution ≠ /\\d/)
+[ ] Scheitert /\\w+/ an meinen Tests? (Falls solution ≠ /\\w+/)
+[ ] Scheitert /./ an meinen Tests?
+[ ] Scheitert /.*/ und /.+/ an meinen Tests?
+[ ] Habe ich Grenzfälle drin (zu kurz / zu lang)?
+[ ] Habe ich einen "Teilstring-aber-ungültig"-Fall (für Anker-Lösungen)?
+[ ] Sind Backslashes mit \\\\d statt \\d kodiert?
+[ ] Ist kein g-Flag gesetzt?
+
+Wenn auch nur EIN [ ] mit "nein" beantwortet wird: ÜBERARBEITE die Aufgabe.
+
+═══════════════════════════════════
+ANFRAGE
+═══════════════════════════════════
 Erstelle einen Kurs mit [ANZAHL] Aufgaben zum Thema [THEMA].
-Schwierigkeitsniveau: [ANFÄNGER/FORTGESCHRITTEN/EXPERTE]
-Sprache der Beschreibungen: [DEUTSCH/ENGLISCH]`
+Schwierigkeitsniveau: [ANFÄNGER / FORTGESCHRITTEN / EXPERTE]
+Sprache der Beschreibungen: [DEUTSCH / ENGLISCH]
+
+Antworte NUR mit dem JSON-Objekt, kein Text davor oder danach.`
 
 export default function TaskLoader({ onCourseLoaded }: Props) {
   const [urlInput, setUrlInput] = useState('')
@@ -55,6 +197,10 @@ export default function TaskLoader({ onCourseLoaded }: Props) {
   const [loading, setLoading] = useState(false)
   const [showPrompt, setShowPrompt] = useState(false)
   const [promptCopied, setPromptCopied] = useState(false)
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([])
+  const [pendingCourse, setPendingCourse] = useState<Course | null>(null)
+  const [pasteInput, setPasteInput] = useState('')
+  const [showPaste, setShowPaste] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const parseCourse = (raw: unknown): Course => {
@@ -66,15 +212,26 @@ export default function TaskLoader({ onCourseLoaded }: Props) {
     return raw as Course
   }
 
+  const loadCourse = (course: Course) => {
+    const issues = validateCourse(course)
+    if (issues.length > 0) {
+      setValidationIssues(issues)
+      setPendingCourse(course)
+    } else {
+      onCourseLoaded(course)
+    }
+  }
+
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setError(null)
+    setValidationIssues([])
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target?.result as string)
-        onCourseLoaded(parseCourse(data))
+        loadCourse(parseCourse(data))
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Fehler beim Laden der Datei')
       }
@@ -86,11 +243,12 @@ export default function TaskLoader({ onCourseLoaded }: Props) {
     if (!urlInput.trim()) return
     setLoading(true)
     setError(null)
+    setValidationIssues([])
     try {
       const resp = await fetch(urlInput.trim())
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const data = await resp.json()
-      onCourseLoaded(parseCourse(data))
+      loadCourse(parseCourse(data))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Laden der URL')
     } finally {
@@ -101,15 +259,30 @@ export default function TaskLoader({ onCourseLoaded }: Props) {
   const handleExample = async () => {
     setLoading(true)
     setError(null)
+    setValidationIssues([])
     try {
       const resp = await fetch('/example-tasks.json')
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const data = await resp.json()
-      onCourseLoaded(parseCourse(data))
+      loadCourse(parseCourse(data))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Laden des Beispiels')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePasteLoad = () => {
+    if (!pasteInput.trim()) return
+    setError(null)
+    setValidationIssues([])
+    try {
+      const data = JSON.parse(pasteInput.trim())
+      loadCourse(parseCourse(data))
+      setPasteInput('')
+      setShowPaste(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ungültiges JSON')
     }
   }
 
@@ -203,10 +376,79 @@ export default function TaskLoader({ onCourseLoaded }: Props) {
             </div>
           </div>
 
+          {/* JSON Paste */}
+          <div>
+            <button
+              onClick={() => setShowPaste((s) => !s)}
+              className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+            >
+              <span className={`transition-transform text-xs ${showPaste ? 'rotate-90' : ''}`}>▶</span>
+              JSON direkt einfügen
+            </button>
+            {showPaste && (
+              <div className="mt-2 space-y-2">
+                <textarea
+                  value={pasteInput}
+                  onChange={(e) => setPasteInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && e.ctrlKey && handlePasteLoad()}
+                  placeholder={'{\n  "course": { "title": "..." },\n  "tasks": [...]\n}'}
+                  rows={6}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-colors font-mono resize-y"
+                />
+                <button
+                  onClick={handlePasteLoad}
+                  disabled={!pasteInput.trim()}
+                  className="w-full py-2 px-4 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                >
+                  Laden — Strg+Enter
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Error */}
           {error && (
             <div className="bg-red-950 border border-red-800 rounded-xl p-3 text-red-300 text-sm">
               ⚠ {error}
+            </div>
+          )}
+
+          {/* Validation warnings */}
+          {validationIssues.length > 0 && pendingCourse && (
+            <div className="bg-yellow-950/60 border border-yellow-700 rounded-xl p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <span className="text-yellow-400 text-lg">⚠</span>
+                <div>
+                  <p className="text-yellow-300 font-semibold text-sm">
+                    {validationIssues.length} Problem{validationIssues.length > 1 ? 'e' : ''} gefunden
+                  </p>
+                  <p className="text-yellow-500 text-xs mt-0.5">
+                    Die solution-Regex einiger Aufgaben besteht nicht alle Testfälle.
+                  </p>
+                </div>
+              </div>
+              <ul className="space-y-1.5 max-h-48 overflow-y-auto">
+                {validationIssues.map((issue, i) => (
+                  <li key={i} className="text-xs text-yellow-300 bg-yellow-900/30 rounded-lg px-3 py-2">
+                    <span className="font-semibold text-yellow-200">{issue.taskTitle}:</span>{' '}
+                    <span className="font-mono">{issue.message}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => { setValidationIssues([]); setPendingCourse(null) }}
+                  className="flex-1 py-2 px-3 rounded-lg border border-yellow-700 text-yellow-400 text-sm hover:bg-yellow-900/30 transition-colors"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={() => { onCourseLoaded(pendingCourse); setValidationIssues([]); setPendingCourse(null) }}
+                  className="flex-1 py-2 px-3 rounded-lg bg-yellow-700 hover:bg-yellow-600 text-white text-sm font-medium transition-colors"
+                >
+                  Trotzdem laden
+                </button>
+              </div>
             </div>
           )}
         </div>
