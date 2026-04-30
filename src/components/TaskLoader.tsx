@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import type { Course } from '../types'
 
 interface Props {
@@ -9,6 +9,15 @@ interface ValidationIssue {
   taskId: string | number
   taskTitle: string
   message: string
+}
+
+interface SharedCourseMeta {
+  id: string
+  title: string
+  description?: string
+  author?: string
+  taskCount: number
+  savedAt: number
 }
 
 const TRIVIAL_PATTERNS = [
@@ -201,7 +210,25 @@ export default function TaskLoader({ onCourseLoaded }: Props) {
   const [pendingCourse, setPendingCourse] = useState<Course | null>(null)
   const [pasteInput, setPasteInput] = useState('')
   const [showPaste, setShowPaste] = useState(false)
+  const [sharedCourses, setSharedCourses] = useState<SharedCourseMeta[]>([])
+  const [shareOnLoad, setShareOnLoad] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const refreshSharedCourses = useCallback(async () => {
+    try {
+      const resp = await fetch('/api/courses')
+      if (!resp.ok) return
+      const data = await resp.json()
+      if (Array.isArray(data)) setSharedCourses(data as SharedCourseMeta[])
+    } catch {
+      // silent fail — backend optional
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshSharedCourses()
+  }, [refreshSharedCourses])
 
   const parseCourse = (raw: unknown): Course => {
     if (typeof raw !== 'object' || raw === null) throw new Error('Ungültiges JSON-Format')
@@ -212,13 +239,50 @@ export default function TaskLoader({ onCourseLoaded }: Props) {
     return raw as Course
   }
 
+  const publishCourse = async (course: Course): Promise<string> => {
+    const resp = await fetch('/api/courses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(course),
+    })
+    if (!resp.ok) {
+      let msg = `HTTP ${resp.status}`
+      try {
+        const j = await resp.json()
+        if (j && typeof j.error === 'string') msg = j.error
+      } catch {
+        // ignore
+      }
+      throw new Error(msg)
+    }
+    const data = await resp.json()
+    if (!data || typeof data.id !== 'string') throw new Error('Ungültige Server-Antwort')
+    refreshSharedCourses()
+    return data.id
+  }
+
+  const finalizeLoad = async (course: Course) => {
+    if (shareOnLoad) {
+      setPublishing(true)
+      try {
+        await publishCourse(course)
+      } catch (err) {
+        setError('Teilen fehlgeschlagen: ' + (err instanceof Error ? err.message : 'Unbekannter Fehler'))
+        setPublishing(false)
+        return
+      }
+      setPublishing(false)
+    }
+    onCourseLoaded(course)
+  }
+
   const loadCourse = (course: Course) => {
     const issues = validateCourse(course)
     if (issues.length > 0) {
       setValidationIssues(issues)
       setPendingCourse(course)
     } else {
-      onCourseLoaded(course)
+      finalizeLoad(course)
     }
   }
 
@@ -286,6 +350,40 @@ export default function TaskLoader({ onCourseLoaded }: Props) {
     }
   }
 
+  const handleSharedLoad = async (id: string) => {
+    setLoading(true)
+    setError(null)
+    setValidationIssues([])
+    try {
+      const resp = await fetch(`/api/courses/${id}`)
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const data = await resp.json()
+      const course = parseCourse(data)
+      const issues = validateCourse(course)
+      if (issues.length > 0) {
+        setValidationIssues(issues)
+        setPendingCourse(course)
+      } else {
+        // shared courses already shared — bypass shareOnLoad path
+        onCourseLoaded(course)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Laden des geteilten Kurses')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSharedDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await fetch(`/api/courses/${id}`, { method: 'DELETE' })
+    } catch {
+      // silent fail
+    }
+    refreshSharedCourses()
+  }
+
   const handleCopyPrompt = async () => {
     try {
       await navigator.clipboard.writeText(LLM_PROMPT)
@@ -311,6 +409,43 @@ export default function TaskLoader({ onCourseLoaded }: Props) {
         {/* Load Options */}
         <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 space-y-5">
 
+          {/* Shared Courses */}
+          {sharedCourses.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Geteilte Kurse <span className="text-gray-500 font-normal">({sharedCourses.length})</span>
+              </label>
+              <ul className="space-y-1.5 max-h-56 overflow-y-auto">
+                {sharedCourses.map((c) => (
+                  <li
+                    key={c.id}
+                    onClick={() => handleSharedLoad(c.id)}
+                    className="group flex items-start gap-2 px-3 py-2 rounded-xl bg-gray-800/60 hover:bg-gray-800 border border-gray-800 hover:border-emerald-700 cursor-pointer transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-gray-100 text-sm truncate">{c.title}</div>
+                      {c.description && (
+                        <div className="text-gray-500 text-xs truncate">{c.description}</div>
+                      )}
+                      <div className="text-gray-600 text-xs mt-0.5">
+                        {c.taskCount} Aufgabe{c.taskCount === 1 ? '' : 'n'}
+                        {c.author ? ` · ${c.author}` : ''}
+                        {c.savedAt ? ` · ${new Date(c.savedAt).toLocaleString()}` : ''}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => handleSharedDelete(c.id, e)}
+                      title="Löschen"
+                      className="opacity-50 hover:opacity-100 hover:text-red-400 text-gray-500 text-lg leading-none px-1 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Example */}
           <div>
             <button
@@ -333,6 +468,18 @@ export default function TaskLoader({ onCourseLoaded }: Props) {
             <span className="text-sm">oder</span>
             <div className="flex-1 h-px bg-gray-800" />
           </div>
+
+          {/* Share-on-load toggle */}
+          <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={shareOnLoad}
+              onChange={(e) => setShareOnLoad(e.target.checked)}
+              className="accent-emerald-500"
+            />
+            <span>Beim Laden mit anderen Nutzern teilen</span>
+            {publishing && <span className="text-xs text-emerald-400 animate-pulse">— wird hochgeladen…</span>}
+          </label>
 
           {/* File Upload */}
           <div>
@@ -443,7 +590,12 @@ export default function TaskLoader({ onCourseLoaded }: Props) {
                   Abbrechen
                 </button>
                 <button
-                  onClick={() => { onCourseLoaded(pendingCourse); setValidationIssues([]); setPendingCourse(null) }}
+                  onClick={() => {
+                    const c = pendingCourse
+                    setValidationIssues([])
+                    setPendingCourse(null)
+                    finalizeLoad(c)
+                  }}
                   className="flex-1 py-2 px-3 rounded-lg bg-yellow-700 hover:bg-yellow-600 text-white text-sm font-medium transition-colors"
                 >
                   Trotzdem laden
