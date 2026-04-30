@@ -1,0 +1,169 @@
+{
+  "course": {
+    "title": "Regex Grundlagen",
+    "description": "Lerne reguläre Ausdrücke von Grund auf – von einfacher Zeichensuche bis zu komplexen Mustern.",
+    "author": "Regex Lernplattform"
+  },
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Einfache Zeichensuche",
+      "description": "Der einfachste Regex ist ein normaler Text. Ein Regex wie `cat` findet das Wort „cat" in einem String.\n\nDeine Aufgabe: Schreibe einen Regex, der das Wort **„hallo"** findet.",
+      "testCases": [
+        { "text": "hallo Welt", "shouldMatch": true, "description": "enthält 'hallo'" },
+        { "text": "Sag hallo zu mir", "shouldMatch": true, "description": "enthält 'hallo'" },
+        { "text": "hallo123", "shouldMatch": true, "description": "enthält 'hallo'" },
+        { "text": "tschüss", "shouldMatch": false, "description": "enthält 'hallo' nicht" },
+        { "text": "Hallo", "shouldMatch": false, "description": "Groß-/Kleinschreibung beachten" },
+        { "text": "halloooo", "shouldMatch": true, "description": "enthält 'hallo'" }
+      ],
+      "hints": [
+        "Tippe das Wort einfach so ein, wie es ist.",
+        "Reguläre Ausdrücke unterscheiden standardmäßig zwischen Groß- und Kleinschreibung.",
+        "Die Lösung ist einfach: hallo"
+      ],
+      "solution": "hallo",
+      "explanation": "Ein einfacher Text ohne Sonderzeichen ist der simpelste mögliche reguläre Ausdruck. `hallo` findet alle Vorkommen der Zeichenkette „hallo" im Text – aber nicht „Hallo" (Großbuchstaben).",
+      "flags": ""
+    },
+    {
+      "id": "task-2",
+      "title": "Zeichenklassen [abc]",
+      "description": "Mit eckigen Klammern `[...]` definierst du eine **Zeichenklasse** – der Regex matcht genau eines der angegebenen Zeichen.\n\nBeispiel: `[aeiou]` matcht jeden Vokal.\n\nSchreibe einen Regex, der sowohl **„grau"** als auch **„grün"** matcht – aber nicht andere Wörter.",
+      "testCases": [
+        { "text": "Das Wetter ist grau", "shouldMatch": true },
+        { "text": "grün ist meine Lieblingsfarbe", "shouldMatch": true },
+        { "text": "grau oder grün?", "shouldMatch": true },
+        { "text": "Das Gras ist grün", "shouldMatch": true },
+        { "text": "blau ist auch schön", "shouldMatch": false },
+        { "text": "rot passt nicht", "shouldMatch": false },
+        { "text": "grob daneben", "shouldMatch": false }
+      ],
+      "hints": [
+        "Beide Wörter beginnen mit 'gr' und enden auf 'n' oder 'u' – aber nicht ganz.",
+        "Schau genau: 'grau' hat 'au', 'grün' hat 'ün'. Was haben sie gemeinsam?",
+        "Versuche gr[aü][un] – eine Zeichenklasse für den dritten und vierten Buchstaben.",
+        "Lösung: gr[aü][un]"
+      ],
+      "solution": "gr[aü][un]",
+      "explanation": "`gr[aü][un]` funktioniert so:\n- `gr` – literale Zeichen\n- `[aü]` – entweder 'a' oder 'ü'\n- `[un]` – entweder 'u' oder 'n'\n\nDas ergibt die Kombinationen: grau, gran, grün, grüu – von denen 'grau' und 'grün' in unseren Testfällen vorkommen.",
+      "flags": ""
+    },
+    {
+      "id": "task-3",
+      "title": "Quantoren: +, * und ?",
+      "description": "Quantoren bestimmen, wie oft ein Zeichen oder eine Gruppe vorkommen darf:\n\n- `?` → 0 oder 1 mal (optional)\n- `+` → 1 oder mehr mal\n- `*` → 0 oder mehr mal\n- `{n,m}` → zwischen n und m mal\n\nSchreibe einen Regex, der **Zahlen** matcht – also eine Folge von einer oder mehr Ziffern.",
+      "testCases": [
+        { "text": "42", "shouldMatch": true },
+        { "text": "0", "shouldMatch": true },
+        { "text": "12345", "shouldMatch": true },
+        { "text": "Preis: 99 Euro", "shouldMatch": true },
+        { "text": "kein Text hier", "shouldMatch": false },
+        { "text": "abc", "shouldMatch": false },
+        { "text": "Datum: 2024-01-15", "shouldMatch": true }
+      ],
+      "hints": [
+        "Eine Ziffer wird im Regex mit \\d oder [0-9] dargestellt.",
+        "Für 'eine oder mehr' benutze den + Quantor.",
+        "Kombiniere: \\d+ findet eine oder mehr Ziffern hintereinander."
+      ],
+      "solution": "\\d+",
+      "explanation": "`\\d+` bedeutet:\n- `\\d` – eine beliebige Ziffer (0-9)\n- `+` – einmal oder öfter\n\nDer Regex findet also alle Zahlenfolgen im Text. Mit dem `g`-Flag würde er alle Vorkommen finden.",
+      "flags": ""
+    },
+    {
+      "id": "task-4",
+      "title": "Anker: ^ und $",
+      "description": "**Anker** matchen keine Zeichen, sondern **Positionen** im Text:\n\n- `^` → Anfang des Strings\n- `$` → Ende des Strings\n\nSchreibe einen Regex, der nur Strings matcht, die **mit einer Großbuchstabe beginnen** und **mit einem Punkt enden**.",
+      "testCases": [
+        { "text": "Hallo Welt.", "shouldMatch": true },
+        { "text": "Das ist ein Satz.", "shouldMatch": true },
+        { "text": "Regex macht Spaß.", "shouldMatch": true },
+        { "text": "klein anfangen.", "shouldMatch": false, "description": "beginnt nicht mit Großbuchstabe" },
+        { "text": "Kein Punkt am Ende", "shouldMatch": false, "description": "kein Punkt am Ende" },
+        { "text": "Groß aber kein punkt", "shouldMatch": false },
+        { "text": "Perfekt.", "shouldMatch": true }
+      ],
+      "hints": [
+        "Verwende ^ am Anfang und $ am Ende des Regex.",
+        "[A-ZÄÖÜ] matcht einen deutschen Großbuchstaben.",
+        "Zwischen Anfang und Ende steht beliebig viel Text: .*",
+        "Vergiss nicht, dem Punkt am Ende zu escapen: \\."
+      ],
+      "solution": "^[A-ZÄÖÜ].*\\.$",
+      "explanation": "`^[A-ZÄÖÜ].*\\.$` setzt sich zusammen aus:\n- `^` – Anfang des Strings\n- `[A-ZÄÖÜ]` – ein deutscher Großbuchstabe\n- `.*` – beliebig viele beliebige Zeichen\n- `\\.` – ein wörtlicher Punkt (escaped, da `.` im Regex sonst 'beliebiges Zeichen' bedeutet)\n- `$` – Ende des Strings",
+      "flags": ""
+    },
+    {
+      "id": "task-5",
+      "title": "Gruppen und Alternativen",
+      "description": "Mit `(a|b)` kannst du **Alternativen** gruppieren – der Regex matcht entweder `a` oder `b`.\n\nKlammern `()` bilden auch **Gruppen**, die du mit `+`, `*` etc. versehen kannst.\n\nSchreibe einen Regex, der sowohl **„Farbe"** als auch **„Farben"** matcht, aber auch **„color"** und **„colors"**.",
+      "testCases": [
+        { "text": "Die Farbe ist schön", "shouldMatch": true },
+        { "text": "Alle Farben des Regenbogens", "shouldMatch": true },
+        { "text": "What color is that?", "shouldMatch": true },
+        { "text": "I love all colors", "shouldMatch": true },
+        { "text": "Das Bild hat Kontrast", "shouldMatch": false },
+        { "text": "Der Ton macht die Musik", "shouldMatch": false },
+        { "text": "Farben und colors", "shouldMatch": true }
+      ],
+      "hints": [
+        "Du brauchst Alternativen mit |: (Farbe|color)",
+        "Das 'n' am Ende bei 'Farben'/'colors' ist optional – verwende n?",
+        "Gruppiere: (Farbe|color)n? oder (Farben?|colors?)",
+        "Lösung: (Farben?|colors?)"
+      ],
+      "solution": "(Farben?|colors?)",
+      "explanation": "`(Farben?|colors?)` nutzt:\n- `(...)` – eine Gruppe mit zwei Alternativen\n- `Farbe|color` – entweder 'Farbe' oder 'color'\n- `n?` – das 'n' ist optional (0 oder 1 mal)\n\nDas matcht: Farbe, Farben, color, colors",
+      "flags": ""
+    },
+    {
+      "id": "task-6",
+      "title": "Lookahead",
+      "description": "Ein **Lookahead** `(?=...)` prüft, ob ein Muster folgt, **ohne es zu konsumieren**.\n\nEin **negativer Lookahead** `(?!...)` prüft, ob ein Muster **nicht** folgt.\n\nSchreibe einen Regex, der Wörter matcht, die von einer Zahl **gefolgt** werden – aber nur das Wort selbst, nicht die Zahl.",
+      "testCases": [
+        { "text": "Version42", "shouldMatch": true, "description": "Wort gefolgt von Zahl" },
+        { "text": "Item7", "shouldMatch": true },
+        { "text": "Kapitel3", "shouldMatch": true },
+        { "text": "NurText", "shouldMatch": false, "description": "keine Zahl dahinter" },
+        { "text": "hello world", "shouldMatch": false },
+        { "text": "Test123", "shouldMatch": true },
+        { "text": "Regex", "shouldMatch": false }
+      ],
+      "hints": [
+        "Worte bestehen aus Buchstaben: [A-Za-zÄÖÜäöüß]+",
+        "Ein Lookahead sieht so aus: (?=\\d) – 'gefolgt von einer Ziffer'",
+        "Kombiniere: [A-Za-zÄÖÜäöüß]+(?=\\d+)"
+      ],
+      "solution": "[A-Za-zÄÖÜäöüß]+(?=\\d)",
+      "explanation": "`[A-Za-zÄÖÜäöüß]+(?=\\d)` bedeutet:\n- `[A-Za-zÄÖÜäöüß]+` – ein oder mehr Buchstaben (inkl. Umlaute)\n- `(?=\\d)` – **Lookahead**: gefolgt von einer Ziffer, aber die Ziffer wird nicht Teil des Matches\n\nDas Besondere: Der Match enthält nur den Buchstabenteil, nicht die Zahl.",
+      "flags": ""
+    },
+    {
+      "id": "task-7",
+      "title": "E-Mail-Validierung",
+      "description": "Eine klassische Regex-Aufgabe: Schreibe einen Regex, der **einfache E-Mail-Adressen** erkennt.\n\nEine E-Mail hat die Form: `local@domain.tld`\n\n- **local**: Buchstaben, Zahlen, Punkte, Unterstriche, Bindestriche\n- **@**: Pflichtzeichen\n- **domain**: Buchstaben, Zahlen, Bindestriche\n- **tld**: 2-6 Buchstaben (z.B. de, com, email)\n\n*Hinweis: Echte E-Mail-Validierung ist sehr komplex – hier geht es um eine vereinfachte Version.*",
+      "testCases": [
+        { "text": "user@example.com", "shouldMatch": true },
+        { "text": "max.mustermann@web.de", "shouldMatch": true },
+        { "text": "info@firma-gmbh.de", "shouldMatch": true },
+        { "text": "test_123@domain.org", "shouldMatch": true },
+        { "text": "admin@sub.domain.email", "shouldMatch": true },
+        { "text": "kein-at-zeichen.de", "shouldMatch": false },
+        { "text": "@domain.com", "shouldMatch": false },
+        { "text": "user@.com", "shouldMatch": false },
+        { "text": "user@domain", "shouldMatch": false, "description": "keine TLD" }
+      ],
+      "hints": [
+        "Teile die E-Mail in drei Teile: local@domain.tld",
+        "Für 'local': [\\w._%+-]+ (Wortzeichen, Punkt, Unterstr., Prozent, Plus, Bindestrich)",
+        "Für 'domain': [\\w-]+ (Wortzeichen und Bindestrich)",
+        "Für TLD: \\.[a-zA-Z]{2,6} (Punkt + 2-6 Buchstaben)",
+        "Vollständig: [\\w._%+-]+@[\\w-]+\\.[a-zA-Z]{2,6}"
+      ],
+      "solution": "[\\w._%+\\-]+@[\\w\\-]+(\\.[\\w\\-]+)*\\.[a-zA-Z]{2,6}",
+      "explanation": "`[\\w._%+\\-]+@[\\w\\-]+(\\.[\\w\\-]+)*\\.[a-zA-Z]{2,6}` matcht E-Mail-Adressen:\n- `[\\w._%+\\-]+` – lokaler Teil (vor @)\n- `@` – das Pflicht-At-Zeichen\n- `[\\w\\-]+` – Domainname\n- `(\\.[\\w\\-]+)*` – optionale Subdomains\n- `\\.[a-zA-Z]{2,6}` – Top-Level-Domain (2-6 Buchstaben)\n\nDieser Regex ist eine vereinfachte Variante – vollständige RFC-5321-Validierung wäre deutlich komplexer.",
+      "flags": ""
+    }
+  ]
+}
